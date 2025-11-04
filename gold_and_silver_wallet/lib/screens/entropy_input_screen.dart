@@ -20,20 +20,18 @@ class EntropyInputScreen extends StatefulWidget {
 }
 
 class _EntropyInputScreenState extends State<EntropyInputScreen> {
-  final TextEditingController _hexController = TextEditingController();
   final TextEditingController _diceController = TextEditingController();
-  final TextEditingController _numbersController = TextEditingController();
-  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _cardController = TextEditingController();
+  final TextEditingController _diceAndCardController = TextEditingController();
   
   String? _error;
   bool _isGenerating = false;
 
   @override
   void dispose() {
-    _hexController.dispose();
     _diceController.dispose();
-    _numbersController.dispose();
-    _textController.dispose();
+    _cardController.dispose();
+    _diceAndCardController.dispose();
     super.dispose();
   }
 
@@ -94,14 +92,12 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
     switch (widget.strategy) {
       case EntropyStrategy.systemRandom:
         return 'System Random';
-      case EntropyStrategy.hexInput:
-        return 'Hex Input';
       case EntropyStrategy.diceRolls:
         return 'Dice Rolls';
-      case EntropyStrategy.numbers:
-        return 'Custom Numbers';
-      case EntropyStrategy.textInput:
-        return 'Text Input';
+      case EntropyStrategy.cardShuffle:
+        return 'Card Shuffle';
+      case EntropyStrategy.diceAndCard:
+        return 'Dice & Card Hybrid';
     }
   }
 
@@ -116,29 +112,21 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
         icon = Icons.shuffle_rounded;
         color = AppTheme.primaryGold;
         break;
-      case EntropyStrategy.hexInput:
-        final bytes = EntropySource.bitsFromWordCount(widget.wordCount) ~/ 8;
-        instructions = 'Enter exactly $bytes bytes (${ bytes * 2} hex characters) of entropy.\n\nExample: a1b2c3d4e5f6...';
-        icon = Icons.edit_rounded;
-        color = AppTheme.secondarySilver;
-        break;
       case EntropyStrategy.diceRolls:
         final minRolls = EntropySource.minDiceRolls(EntropySource.bitsFromWordCount(widget.wordCount));
         instructions = 'Roll a 6-sided dice at least $minRolls times and enter the results (1-6).\n\nExample: 1 4 2 6 3 5 1 2...';
         icon = Icons.casino_rounded;
         color = AppTheme.success;
         break;
-      case EntropyStrategy.numbers:
-        final minNumbers = EntropySource.minNumbers(EntropySource.bitsFromWordCount(widget.wordCount));
-        instructions = 'Enter at least $minNumbers numbers (0-255), separated by spaces or commas.\n\nExample: 42 156 78 201...';
-        icon = Icons.pin_rounded;
-        color = AppTheme.warning;
+      case EntropyStrategy.cardShuffle:
+        instructions = 'Shuffle a standard 52-card deck thoroughly (7+ riffle shuffles recommended).\n\nRecord the final order as two-letter codes: [Rank][Suit].\n\nRanks: A, 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K\nSuits: S (Spades), D (Diamonds), C (Clubs), H (Hearts)\n\nExample: AS,7D,KC,2H,QH,9C,JD,...\n\nEnter all 52 cards in order, comma-separated.';
+        icon = Icons.style_rounded;
+        color = AppTheme.secondarySilver;
         break;
-      case EntropyStrategy.textInput:
-        final minLength = EntropySource.minTextLength(EntropySource.bitsFromWordCount(widget.wordCount));
-        instructions = 'Enter at least $minLength characters of text (passwords, phrases, etc.).\n\nUse mixed case, numbers, and symbols for better entropy.\n\nExample: MySecurePass123! or "The quick brown fox jumps over the lazy dog"';
-        icon = Icons.text_fields_rounded;
-        color = AppTheme.error;
+      case EntropyStrategy.diceAndCard:
+        instructions = 'Combine card shuffle and dice rolls for maximum security.\n\nStep 1: Shuffle a 52-card deck and record the order (e.g., AS,7D,KC,2H,...)\nStep 2: Roll a 6-sided die 20-50 times and record the sequence (e.g., 3,6,2,1,4,5,...)\n\nEnter in format: cards|dice\n\nExample: AS,7D,KC,2H,QH,9C,JD,...|3,6,2,1,4,5,2,6,3,1,...';
+        icon = Icons.auto_awesome_rounded;
+        color = AppTheme.primaryGold;
         break;
     }
 
@@ -173,21 +161,6 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
       case EntropyStrategy.systemRandom:
         return const SizedBox.shrink();
       
-      case EntropyStrategy.hexInput:
-        return ModernCard(
-          child: TextField(
-            controller: _hexController,
-            decoration: const InputDecoration(
-              labelText: 'Hex Entropy',
-              hintText: 'a1b2c3d4e5f6...',
-              prefixIcon: Icon(Icons.edit_rounded),
-              helperText: 'Enter hex characters (0-9, a-f)',
-            ),
-            maxLines: 3,
-            textCapitalization: TextCapitalization.none,
-          ),
-        );
-      
       case EntropyStrategy.diceRolls:
         return ModernCard(
           child: TextField(
@@ -196,40 +169,40 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
               labelText: 'Dice Rolls',
               hintText: '1 4 2 6 3 5 1 2 4 6...',
               prefixIcon: Icon(Icons.casino_rounded),
-              helperText: 'Enter dice values (1-6), space-separated',
+              helperText: 'Enter dice values (1-6), space or comma-separated',
             ),
             keyboardType: TextInputType.number,
             maxLines: 5,
           ),
         );
       
-      case EntropyStrategy.numbers:
+      case EntropyStrategy.cardShuffle:
         return ModernCard(
           child: TextField(
-            controller: _numbersController,
+            controller: _cardController,
             decoration: const InputDecoration(
-              labelText: 'Custom Numbers',
-              hintText: '42, 156, 78, 201, 133...',
-              prefixIcon: Icon(Icons.pin_rounded),
-              helperText: 'Enter numbers (0-255), space or comma-separated',
+              labelText: 'Card Sequence',
+              hintText: 'AS,7D,KC,2H,QH,9C,JD,AH,3S,5D,...',
+              prefixIcon: Icon(Icons.style_rounded),
+              helperText: 'Enter all 52 cards in format [Rank][Suit], comma-separated',
             ),
-            keyboardType: TextInputType.number,
-            maxLines: 5,
+            maxLines: 8,
+            textCapitalization: TextCapitalization.characters,
           ),
         );
       
-      case EntropyStrategy.textInput:
+      case EntropyStrategy.diceAndCard:
         return ModernCard(
           child: TextField(
-            controller: _textController,
+            controller: _diceAndCardController,
             decoration: const InputDecoration(
-              labelText: 'Text Input',
-              hintText: 'MySecurePass123! or "The quick brown fox..."',
-              prefixIcon: Icon(Icons.text_fields_rounded),
-              helperText: 'Enter text with mixed case, numbers, and symbols',
+              labelText: 'Cards and Dice',
+              hintText: 'AS,7D,KC,2H,QH,9C,JD,...|3,6,2,1,4,5,2,6,3,1,...',
+              prefixIcon: Icon(Icons.auto_awesome_rounded),
+              helperText: 'Format: cards|dice (52 cards separated by |, then dice rolls)',
             ),
-            maxLines: 5,
-            textCapitalization: TextCapitalization.none,
+            maxLines: 10,
+            textCapitalization: TextCapitalization.characters,
           ),
         );
     }
@@ -278,17 +251,14 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
       case EntropyStrategy.systemRandom:
         helpText = 'Uses your device\'s secure random number generator to create cryptographically secure entropy.';
         break;
-      case EntropyStrategy.hexInput:
-        helpText = 'Enter hexadecimal characters (0-9, a-f) to provide your own entropy source.';
-        break;
       case EntropyStrategy.diceRolls:
-        helpText = 'Roll a physical 6-sided dice and enter the results. This provides true randomness.';
+        helpText = 'Roll a physical 6-sided dice and enter the results. This provides true randomness. Each roll gives approximately 2.585 bits of entropy.';
         break;
-      case EntropyStrategy.numbers:
-        helpText = 'Enter random numbers (0-255) from any source to create entropy.';
+      case EntropyStrategy.cardShuffle:
+        helpText = 'Shuffle a standard 52-card deck thoroughly (7+ riffle shuffles recommended) and record the final order. Each card provides approximately 5.7 bits of entropy. The full deck provides ~225 bits, which is more than enough for any mnemonic length.';
         break;
-      case EntropyStrategy.textInput:
-        helpText = 'Enter any text (passwords, phrases, etc.) to generate entropy from text content.';
+      case EntropyStrategy.diceAndCard:
+        helpText = 'Combines card shuffling and dice rolling for maximum security. First, shuffle a 52-card deck and record the order. Then, roll a 6-sided die 20-50 times and record those results. Enter both in the format: "cards|dice". This hybrid approach provides excellent entropy from independent physical sources.';
         break;
     }
 
@@ -321,14 +291,6 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
           mnemonic = Mnemonic.generate(wordCount: widget.wordCount);
           break;
 
-        case EntropyStrategy.hexInput:
-          final hex = _hexController.text.trim();
-          if (hex.isEmpty) {
-            throw ArgumentError('Please enter hex entropy');
-          }
-          mnemonic = Mnemonic.fromHex(hex, wordCount: widget.wordCount);
-          break;
-
         case EntropyStrategy.diceRolls:
           final diceText = _diceController.text.trim();
           if (diceText.isEmpty) {
@@ -342,25 +304,20 @@ class _EntropyInputScreenState extends State<EntropyInputScreen> {
           mnemonic = Mnemonic.fromDiceRolls(rolls, wordCount: widget.wordCount);
           break;
 
-        case EntropyStrategy.numbers:
-          final numbersText = _numbersController.text.trim();
-          if (numbersText.isEmpty) {
-            throw ArgumentError('Please enter numbers');
+        case EntropyStrategy.cardShuffle:
+          final cardText = _cardController.text.trim();
+          if (cardText.isEmpty) {
+            throw ArgumentError('Please enter card sequence');
           }
-          final numbers = numbersText
-              .split(RegExp(r'[\s,]+'))
-              .where((s) => s.isNotEmpty)
-              .map((s) => int.parse(s))
-              .toList();
-          mnemonic = Mnemonic.fromNumbers(numbers, wordCount: widget.wordCount);
+          mnemonic = Mnemonic.fromCardShuffle(cardText, wordCount: widget.wordCount);
           break;
 
-        case EntropyStrategy.textInput:
-          final text = _textController.text.trim();
-          if (text.isEmpty) {
-            throw ArgumentError('Please enter text');
+        case EntropyStrategy.diceAndCard:
+          final combinedText = _diceAndCardController.text.trim();
+          if (combinedText.isEmpty) {
+            throw ArgumentError('Please enter cards and dice in format: cards|dice');
           }
-          mnemonic = Mnemonic.fromText(text, wordCount: widget.wordCount);
+          mnemonic = Mnemonic.fromDiceAndCard(combinedText, wordCount: widget.wordCount);
           break;
       }
 

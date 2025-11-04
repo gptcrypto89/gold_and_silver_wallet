@@ -9,10 +9,9 @@ import 'package:crypto/crypto.dart';
 /// Uses multiple system and user sources with cryptographic mixing (HKDF + SHA-512)
 enum EntropyStrategy {
   systemRandom,
-  hexInput,
   diceRolls,
-  numbers,
-  textInput,
+  cardShuffle,
+  diceAndCard,
 }
 
 class EntropySource {
@@ -87,34 +86,104 @@ class EntropySource {
   }
 
   // ===========================================================
-  // 🧩 HEX INPUT
+  // 🎴 CARD SHUFFLE
   // ===========================================================
-  static Uint8List fromHex(String hex) {
-    hex = hex.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
-    if (hex.startsWith('0x')) hex = hex.substring(2);
-    if (hex.length % 2 != 0) throw ArgumentError('Hex string must have even length');
-    if (!RegExp(r'^[0-9a-f]+$').hasMatch(hex)) {
-      throw ArgumentError('Invalid hex string');
+  static Uint8List fromCardShuffle(String cardSequence, int bits) {
+    // Parse card sequence: "AS,7D,KC,2H,QH,9C,JD,..."
+    final cards = cardSequence
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (cards.length != 52) {
+      throw ArgumentError('Card sequence must contain exactly 52 cards (found ${cards.length})');
     }
 
-    final bytes = Uint8List(hex.length ~/ 2);
-    for (int i = 0; i < bytes.length; i++) {
-      bytes[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
+    // Validate card format and uniqueness
+    final validCards = _validateCardSequence(cards);
+    if (!validCards) {
+      throw ArgumentError('Invalid card sequence. Each card must be in format [Rank][Suit] (e.g., AS, 7D, KC, 2H) and all 52 cards must be unique.');
     }
 
-    // Validation with multiple tests
-    if (!_validateEntropyQuality(bytes)) {
-      throw ArgumentError('Hex input shows insufficient randomness.');
-    }
+    // Convert card sequence to bytes
+    // Each card is represented by its position in a standard deck order
+    final cardBytes = _cardsToBytes(cards);
 
-    // Additional compression pattern detection
-    if (_hasCompressionPattern(bytes)) {
-      throw ArgumentError('Hex input contains compression patterns.');
+    // Validate entropy quality
+    if (!_validateEntropyQuality(cardBytes)) {
+      throw ArgumentError('Card shuffle shows insufficient randomness.');
     }
 
     // Mix with system entropy to prevent deterministic attacks
     final systemSalt = _collectSystemSalt();
-    return _hkdf(bytes, systemSalt, bytes.length);
+    var result = _hkdf(cardBytes, systemSalt, bits ~/ 8);
+    
+    // Additional whitening
+    result = _whitenEntropy(result);
+    
+    return result;
+  }
+
+  // Validate card sequence format and uniqueness
+  static bool _validateCardSequence(List<String> cards) {
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const suits = ['S', 'D', 'C', 'H'];
+    
+    final seenCards = <String>{};
+    
+    for (final card in cards) {
+      // Check format: rank + suit
+      if (card.length < 2 || card.length > 3) return false;
+      
+      final suit = card[card.length - 1];
+      final rank = card.substring(0, card.length - 1);
+      
+      if (!ranks.contains(rank) || !suits.contains(suit)) {
+        return false;
+      }
+      
+      // Check uniqueness
+      if (seenCards.contains(card)) {
+        return false;
+      }
+      seenCards.add(card);
+    }
+    
+    return seenCards.length == 52;
+  }
+
+  // Convert card sequence to bytes
+  static Uint8List _cardsToBytes(List<String> cards) {
+    // Map each card to its position in standard deck order
+    // Standard order: AS, 2S, 3S, ..., KS, AD, 2D, ..., KD, AC, 2C, ..., KC, AH, 2H, ..., KH
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const suits = ['S', 'D', 'C', 'H'];
+    
+    final standardOrder = <String>[];
+    for (final suit in suits) {
+      for (final rank in ranks) {
+        standardOrder.add('$rank$suit');
+      }
+    }
+    
+    // Create mapping from card to position
+    final cardToPosition = <String, int>{};
+    for (int i = 0; i < standardOrder.length; i++) {
+      cardToPosition[standardOrder[i]] = i;
+    }
+    
+    // Convert shuffled sequence to position bytes
+    final bytes = Uint8List(cards.length);
+    for (int i = 0; i < cards.length; i++) {
+      final position = cardToPosition[cards[i]];
+      if (position == null) {
+        throw ArgumentError('Invalid card: ${cards[i]}');
+      }
+      bytes[i] = position;
+    }
+    
+    return bytes;
   }
 
   // ===========================================================
@@ -165,83 +234,109 @@ class EntropySource {
   }
 
   // ===========================================================
-  // 🔢 NUMERIC INPUT
+  // 🎴 + 🎲 DICE AND CARD HYBRID
   // ===========================================================
-  static Uint8List fromNumbers(List<int> numbers, int bits) {
-    if (numbers.isEmpty) throw ArgumentError('Empty numeric input');
-    
-    // Process numbers with position-dependent mixing
-    final processed = Uint8List(numbers.length);
-    for (int i = 0; i < numbers.length; i++) {
-      processed[i] = ((numbers[i] % 256) ^ (i & 0xFF)) & 0xFF;
+  static Uint8List fromDiceAndCard(String combinedInput, int bits) {
+    // Split combined input: "cards|dice"
+    final parts = combinedInput.split('|');
+    if (parts.length != 2) {
+      throw ArgumentError('Combined input must be in format: "cards|dice" (e.g., "AS,7D,KC,...|3,6,2,1,4,5,...")');
     }
 
-    if (!_validateInputEntropy(processed)) {
-      throw ArgumentError('Insufficient numeric randomness.');
+    final cardSequence = parts[0].trim();
+    final diceSequence = parts[1].trim();
+
+    if (cardSequence.isEmpty || diceSequence.isEmpty) {
+      throw ArgumentError('Both card sequence and dice sequence must be provided');
     }
 
-    // Check for arithmetic sequences
-    if (_hasArithmeticSequence(numbers)) {
-      throw ArgumentError('Numbers contain arithmetic sequences.');
+    // Parse and validate cards
+    final cards = cardSequence
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (cards.length != 52) {
+      throw ArgumentError('Card sequence must contain exactly 52 cards (found ${cards.length})');
     }
 
-    // Multi-round mixing
-    var hmac = Hmac(sha512, 'number_entropy_key'.codeUnits);
-    var hash = hmac.convert(processed);
-    
-    // Mix with system entropy
-    final systemSalt = _collectSystemSalt();
-    hash = hmac.convert([...hash.bytes, ...systemSalt]);
-    
-    final result = _extractEntropyBytes(Uint8List.fromList(hash.bytes), bits);
-    return _whitenEntropy(result);
-  }
-
-  // ===========================================================
-  // 💬 TEXT INPUT
-  // ===========================================================
-  static Uint8List fromText(String text, int bits) {
-    if (text.length < 8) throw ArgumentError('Text input must be ≥ 8 chars');
-
-    final textBytes = Uint8List.fromList(text.codeUnits);
-    
-    if (!_validateTextEntropy(textBytes)) {
-      throw ArgumentError('Text input too weak. Use mixed case, numbers, symbols.');
+    final validCards = _validateCardSequence(cards);
+    if (!validCards) {
+      throw ArgumentError('Invalid card sequence. Each card must be in format [Rank][Suit] (e.g., AS, 7D, KC, 2H) and all 52 cards must be unique.');
     }
 
-    // Check for keyboard patterns
-    if (_hasKeyboardPattern(text)) {
-      throw ArgumentError('Text contains keyboard patterns.');
+    // Parse and validate dice rolls
+    final diceText = diceSequence
+        .split(RegExp(r'[\s,]+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+    
+    final rolls = diceText.map((s) => int.parse(s)).toList();
+
+    if (rolls.any((r) => r < 1 || r > 6)) {
+      throw ArgumentError('Dice rolls must be between 1 and 6');
     }
 
-    // Position-aware hashing
-    final positionMixed = Uint8List(textBytes.length);
-    for (int i = 0; i < textBytes.length; i++) {
-      positionMixed[i] = (textBytes[i] ^ (i * 17) ^ (text.length * 31)) & 0xFF;
+    final minDiceRolls = 20; // Minimum recommended
+    if (rolls.length < minDiceRolls) {
+      throw ArgumentError('Need at least $minDiceRolls dice rolls (found ${rolls.length})');
     }
 
-    // Multi-round cryptographic mixing
-    var hmac = Hmac(sha512, 'text_entropy_key'.codeUnits);
-    var hash = hmac.convert(positionMixed);
-    
-    // Mix with UTF-8 byte representation
-    hmac = Hmac(sha512, textBytes);
-    hash = hmac.convert(hash.bytes);
-    
-    // Mix with system entropy
-    final systemSalt = _collectSystemSalt();
-    hash = hmac.convert([...hash.bytes, ...systemSalt]);
+    // Validate dice randomness
+    if (!_validateDiceRandomness(rolls)) {
+      throw ArgumentError('Dice rolls appear biased or patterned.');
+    }
 
-    final result = _extractEntropyBytes(Uint8List.fromList(hash.bytes), bits);
-    return _whitenEntropy(result);
+    if (_hasSerialCorrelation(rolls)) {
+      throw ArgumentError('Dice rolls show serial correlation.');
+    }
+
+    // Convert cards to bytes
+    final cardBytes = _cardsToBytes(cards);
+
+    // Convert dice rolls to bytes
+    BigInt diceAcc = BigInt.zero;
+    for (final roll in rolls) {
+      diceAcc = diceAcc * BigInt.from(6) + BigInt.from(roll - 1);
+    }
+    final diceBytes = _bigIntToBytes(diceAcc);
+
+    // Combine: cards + "|" + dice
+    final combined = Uint8List.fromList([
+      ...cardBytes,
+      ...'|'.codeUnits,
+      ...diceBytes,
+    ]);
+
+    // Hash with SHA-512 (BLAKE3 equivalent in Dart - using SHA-512 for FIPS-like security)
+    final hash = sha512.convert(combined);
+    
+    // Extract desired length (default 32 bytes for 256 bits)
+    final targetBytes = bits ~/ 8;
+    var result = Uint8List.fromList(hash.bytes);
+    
+    // If we need more bytes, derive using HKDF
+    if (result.length < targetBytes) {
+      final systemSalt = _collectSystemSalt();
+      result = _hkdf(result, systemSalt, targetBytes);
+    } else if (result.length > targetBytes) {
+      result = Uint8List.fromList(result.sublist(0, targetBytes));
+    }
+
+    // Additional whitening
+    result = _whitenEntropy(result);
+    
+    // Final avalanche mixing
+    return _avalancheMix(result);
   }
 
   // ===========================================================
   // 📏 Utility Calculations
   // ===========================================================
   static int minDiceRolls(int bits) => ((bits / 2.585) * 1.2).ceil() + 10;
-  static int minNumbers(int bits) => (bits / 8).ceil();
-  static int minTextLength(int bits) => (bits / 4.5).ceil().clamp(8, 100);
+  static int minCardShuffleCards() => 52; // Always 52 cards for full deck
+  static int minDiceAndCardRolls() => 20; // Minimum recommended dice rolls for hybrid
 
   static bool isValidEntropyBits(int bits) =>
       bits >= 128 && bits <= 512 && bits % 32 == 0;

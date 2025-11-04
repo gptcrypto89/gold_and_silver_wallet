@@ -26,20 +26,6 @@ class Mnemonic {
     return fromEntropy(entropy);
   }
 
-  /// Generate mnemonic from hex string
-  static String fromHex(String hex, {int wordCount = 24}) {
-    final bits = EntropySource.bitsFromWordCount(wordCount);
-    final entropy = EntropySource.fromHex(hex);
-    
-    if (entropy.length != bits ~/ 8) {
-      throw ArgumentError(
-        'Hex string must provide exactly ${bits ~/ 8} bytes (${bits} bits) for $wordCount words'
-      );
-    }
-    
-    return fromEntropy(entropy);
-  }
-
   /// Generate mnemonic from dice rolls
   static String fromDiceRolls(List<int> rolls, {int wordCount = 24}) {
     final bits = EntropySource.bitsFromWordCount(wordCount);
@@ -55,17 +41,23 @@ class Mnemonic {
     return fromEntropy(entropy);
   }
 
-  /// Generate mnemonic from numbers
-  static String fromNumbers(List<int> numbers, {int wordCount = 24}) {
+  /// Generate mnemonic from card shuffle
+  /// 
+  /// [cardSequence] should be a comma-separated list of 52 cards in format [Rank][Suit]
+  /// Example: "AS,7D,KC,2H,QH,9C,JD,..."
+  static String fromCardShuffle(String cardSequence, {int wordCount = 24}) {
     final bits = EntropySource.bitsFromWordCount(wordCount);
-    final entropy = EntropySource.fromNumbers(numbers, bits);
+    final entropy = EntropySource.fromCardShuffle(cardSequence, bits);
     return fromEntropy(entropy);
   }
 
-  /// Generate mnemonic from text input
-  static String fromText(String text, {int wordCount = 24}) {
+  /// Generate mnemonic from dice and card hybrid
+  /// 
+  /// [combinedInput] should be in format: "cards|dice"
+  /// Example: "AS,7D,KC,2H,QH,9C,JD,...|3,6,2,1,4,5,2,6,3,1,..."
+  static String fromDiceAndCard(String combinedInput, {int wordCount = 24}) {
     final bits = EntropySource.bitsFromWordCount(wordCount);
-    final entropy = EntropySource.fromText(text, bits);
+    final entropy = EntropySource.fromDiceAndCard(combinedInput, bits);
     return fromEntropy(entropy);
   }
 
