@@ -29,10 +29,10 @@ A professional Flutter-based hierarchical deterministic (HD) cold wallet impleme
 ## ✨ Key Features
 
 ### 🎲 Multiple Entropy Strategies
-- **System Random**: Cryptographically secure RNG (fastest)
-- **Hex Input**: Provide your own hexadecimal entropy (full control)
-- **Dice Rolls**: Physical dice for maximum security (most secure)
-- **Custom Numbers**: Use any random number source (flexible)
+- **System Random**: Cryptographically secure RNG (fastest, recommended)
+- **Dice Rolls**: Physical 6-sided dice for true randomness (most secure)
+- **Card Shuffle**: Shuffle a 52-card deck and record the order (~225 bits entropy)
+- **Dice & Card Hybrid**: Combine card shuffle and dice rolls for maximum security
 
 ### 📝 Flexible Mnemonic Lengths
 - **12 words** (128-bit): Standard security
@@ -296,6 +296,7 @@ ColdifyWallet/
 
 ### Create Wallet with Maximum Security
 
+**Option 1: Dice Rolls (Most Secure)**
 ```
 1. Open app → "Create New Wallet"
 2. Select "24 words" + "Dice Rolls"
@@ -303,6 +304,29 @@ ColdifyWallet/
 4. Enter: 1 4 2 6 3 5 1 2 4 6 ...
 5. Generate and save mnemonic
 6. Write down all 24 words
+```
+
+**Option 2: Card Shuffle (High Security)**
+```
+1. Open app → "Create New Wallet"
+2. Select "24 words" + "Card Shuffle"
+3. Shuffle a 52-card deck thoroughly (7+ riffle shuffles)
+4. Record the order: AS,7D,KC,2H,QH,9C,JD,...
+5. Enter all 52 cards comma-separated
+6. Generate and save mnemonic
+7. Write down all 24 words
+```
+
+**Option 3: Dice & Card Hybrid (Maximum Security)**
+```
+1. Open app → "Create New Wallet"
+2. Select "24 words" + "Dice & Card Hybrid"
+3. Shuffle a 52-card deck and record: AS,7D,KC,2H,...
+4. Roll dice 20-50 times and record: 3,6,2,1,4,5,...
+5. Enter in format: cards|dice
+   Example: AS,7D,KC,2H,QH,9C,JD,...|3,6,2,1,4,5,2,6,3,1,...
+6. Generate and save mnemonic
+7. Write down all 24 words
 ```
 
 ### Import Existing Wallet
@@ -346,6 +370,10 @@ Three independent packages:
 
 2. **hd_wallet** (Standalone)
    - BIP39: Mnemonic generation with 4 entropy strategies
+     - System Random (cryptographically secure RNG)
+     - Dice Rolls (physical dice for true randomness)
+     - Card Shuffle (52-card deck shuffle)
+     - Dice & Card Hybrid (combines cards and dice)
    - BIP32: HD key derivation
    - BIP44: Multi-account hierarchy
    - Multi-asset address generation
@@ -369,7 +397,11 @@ Three independent packages:
 - Full 2048-word English wordlist (hardcoded)
 - Checksum validation
 - PBKDF2-HMAC-SHA512 for seed generation
-- **New**: 4 entropy generation strategies
+- **4 Entropy Generation Strategies**:
+  - **System Random**: Uses device's secure RNG (fastest)
+  - **Dice Rolls**: Physical 6-sided dice (~2.585 bits per roll)
+  - **Card Shuffle**: 52-card deck shuffle (~225 bits total)
+  - **Dice & Card Hybrid**: Combines both sources with SHA-512 hashing
 
 ### BIP32 - Hierarchical Deterministic Wallets
 - Master key derived from seed
@@ -391,7 +423,9 @@ Three independent packages:
 ### ✅ DO
 
 - Generate on offline/air-gapped device
-- Use dice rolls for maximum security
+- Use dice rolls, card shuffle, or hybrid for maximum security
+- Shuffle cards thoroughly (7+ riffle shuffles recommended)
+- Roll dice on a flat, random surface
 - Write recovery phrase on paper (never digital)
 - Store in multiple secure physical locations
 - Test with small amounts first
