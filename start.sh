@@ -104,16 +104,45 @@ fi
 # Check for Linux build dependencies
 if [ "$PLATFORM" = "linux" ] && [ "$SKIP_BUILD" = false ]; then
     MISSING_DEPS=()
-    if ! command -v autoconf &> /dev/null; then
+    
+    # Check for autoconf
+    if ! command -v autoconf &> /dev/null && [ ! -f /usr/bin/autoconf ]; then
         MISSING_DEPS+=("autoconf")
     fi
-    if ! command -v automake &> /dev/null; then
+    
+    # Check for automake
+    if ! command -v automake &> /dev/null && [ ! -f /usr/bin/automake ]; then
         MISSING_DEPS+=("automake")
     fi
-    if ! command -v libtool &> /dev/null; then
-        MISSING_DEPS+=("libtool")
+    
+    # Check for libtool (can be in different locations or provided by libtool-bin)
+    # Note: libtool might be installed but not in PATH, so we check multiple ways
+    LIBTOOL_FOUND=false
+    if command -v libtool &> /dev/null; then
+        LIBTOOL_FOUND=true
+    elif [ -f /usr/bin/libtool ] || [ -f /usr/local/bin/libtool ]; then
+        LIBTOOL_FOUND=true
+    elif command -v libtoolize &> /dev/null; then
+        # libtoolize is often provided by libtool package
+        LIBTOOL_FOUND=true
+    elif command -v dpkg &> /dev/null; then
+        # Check if libtool package is installed (even if not in PATH)
+        # dpkg -l output format: ii  package-name  version  description
+        if dpkg -l 2>/dev/null | grep -q "^ii.*libtool"; then
+            LIBTOOL_FOUND=true
+        fi
     fi
-    if ! command -v make &> /dev/null; then
+    
+    if [ "$LIBTOOL_FOUND" = false ]; then
+        # Don't fail on libtool - autogen.sh will handle it
+        # Just warn and let the build process show the actual error
+        echo "⚠️  Warning: libtool not found in PATH"
+        echo "   If autogen.sh fails, install with: sudo apt-get install libtool"
+        echo ""
+    fi
+    
+    # Check for make
+    if ! command -v make &> /dev/null && [ ! -f /usr/bin/make ]; then
         MISSING_DEPS+=("build-essential")
     fi
     
