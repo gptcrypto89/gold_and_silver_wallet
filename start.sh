@@ -101,6 +101,37 @@ if ! command -v flutter &> /dev/null; then
     fi
 fi
 
+# Check for Linux build dependencies
+if [ "$PLATFORM" = "linux" ] && [ "$SKIP_BUILD" = false ]; then
+    MISSING_DEPS=()
+    if ! command -v autoconf &> /dev/null; then
+        MISSING_DEPS+=("autoconf")
+    fi
+    if ! command -v automake &> /dev/null; then
+        MISSING_DEPS+=("automake")
+    fi
+    if ! command -v libtool &> /dev/null; then
+        MISSING_DEPS+=("libtool")
+    fi
+    if ! command -v make &> /dev/null; then
+        MISSING_DEPS+=("build-essential")
+    fi
+    
+    if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+        echo "❌ Missing required build dependencies for Linux:"
+        for dep in "${MISSING_DEPS[@]}"; do
+            echo "   - $dep"
+        done
+        echo ""
+        echo "💡 Please install them with:"
+        echo "   sudo apt-get update"
+        echo "   sudo apt-get install -y ${MISSING_DEPS[*]}"
+        echo ""
+        echo "Then run this script again."
+        exit 1
+    fi
+fi
+
 # Build native libraries if needed
 if [ "$SKIP_BUILD" = false ]; then
     echo "🔧 Building secp256k1 native libraries..."
@@ -130,10 +161,37 @@ if [ "$SKIP_BUILD" = false ]; then
             echo "❌ autogen.sh not found in $SECP256K1_DIR"
             exit 1
         fi
+        
+        # Make autogen.sh executable
+        chmod +x autogen.sh
+        
+        # Check for required tools
+        if ! command -v autoconf &> /dev/null; then
+            echo "⚠️  Warning: autoconf not found. Install with: sudo apt-get install autoconf"
+        fi
+        if ! command -v automake &> /dev/null; then
+            echo "⚠️  Warning: automake not found. Install with: sudo apt-get install automake"
+        fi
+        if ! command -v libtool &> /dev/null; then
+            echo "⚠️  Warning: libtool not found. Install with: sudo apt-get install libtool"
+        fi
+        
+        # Run autogen.sh
         ./autogen.sh || {
             echo "❌ Failed to generate configure script"
+            echo "💡 Make sure you have autotools installed: sudo apt-get install autoconf automake libtool"
             exit 1
         }
+        
+        # Verify configure was created
+        if [ ! -f "configure" ]; then
+            echo "❌ configure script was not created after running autogen.sh"
+            echo "💡 Check the output above for errors. You may need to install autotools."
+            exit 1
+        fi
+        
+        # Make configure executable
+        chmod +x configure
     fi
     
     # Common configuration
@@ -243,20 +301,41 @@ if [ "$SKIP_BUILD" = false ]; then
         linux)
             if [ ! -f "$WRAPPER_DIR/linux/libsecp256k1.so" ]; then
                 echo "🐧 Building for Linux..."
-                cd "$SECP256K1_DIR"
+                cd "$SECP256K1_DIR" || {
+                    echo "❌ Failed to change to secp256k1 directory: $SECP256K1_DIR"
+                    exit 1
+                }
                 
-                # Ensure configure script exists
+                # Ensure configure script exists (should already be generated above, but double-check)
                 if [ ! -f "configure" ]; then
-                    echo "🔨 Generating configure script..."
+                    echo "🔨 Configure script not found, generating..."
+                    if [ ! -f "autogen.sh" ]; then
+                        echo "❌ autogen.sh not found in $SECP256K1_DIR"
+                        exit 1
+                    fi
+                    chmod +x autogen.sh
                     ./autogen.sh || {
                         echo "❌ Failed to generate configure script"
+                        echo "💡 Make sure you have autotools installed: sudo apt-get install autoconf automake libtool"
                         exit 1
                     }
+                    if [ ! -f "configure" ]; then
+                        echo "❌ configure script was not created"
+                        exit 1
+                    fi
+                    chmod +x configure
                 fi
                 
-                # Ensure we're in the right directory and configure exists
+                # Verify configure is executable and exists
+                if [ ! -x "./configure" ]; then
+                    echo "⚠️  Configure script is not executable, fixing..."
+                    chmod +x ./configure
+                fi
+                
                 if [ ! -f "./configure" ]; then
                     echo "❌ Configure script not found in $SECP256K1_DIR"
+                    echo "Current directory: $(pwd)"
+                    echo "Files in directory: $(ls -la | head -20)"
                     exit 1
                 fi
                 
