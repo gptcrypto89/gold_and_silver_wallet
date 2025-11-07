@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:hd_wallet/hd_wallet.dart';
+import 'package:convert/convert.dart';
 import '../services/wallet_manager.dart';
 import '../services/security_service.dart';
 import '../models/wallet_model.dart';
@@ -25,6 +27,8 @@ class _ImportWalletScreenState extends State<ImportWalletScreen> {
   bool _isImporting = false;
   bool _usePassphrase = false;
   bool _showPassphrase = false;
+  bool _showBip39Seed = false;
+  bool _showBip32RootKey = false;
 
   @override
   void dispose() {
@@ -32,6 +36,39 @@ class _ImportWalletScreenState extends State<ImportWalletScreen> {
     _nameController.dispose();
     _passphraseController.dispose();
     super.dispose();
+  }
+
+  String _getBip39Seed() {
+    try {
+      final mnemonic = _mnemonicController.text.trim().toLowerCase();
+      if (mnemonic.isEmpty || !Mnemonic.validate(mnemonic)) {
+        return 'Enter a valid mnemonic to see the seed';
+      }
+      final passphrase = _usePassphrase ? _passphraseController.text : '';
+      final seed = Mnemonic.toSeed(mnemonic, passphrase: passphrase);
+      return hex.encode(seed);
+    } catch (e) {
+      return 'Error generating seed: $e';
+    }
+  }
+
+  String _getBip32RootKey() {
+    try {
+      final mnemonic = _mnemonicController.text.trim().toLowerCase();
+      if (mnemonic.isEmpty || !Mnemonic.validate(mnemonic)) {
+        return 'Enter a valid mnemonic to see the root key';
+      }
+      final passphrase = _usePassphrase ? _passphraseController.text : '';
+      final hdWallet = HDWallet.fromMnemonic(mnemonic, passphrase: passphrase);
+      return hdWallet.masterExtendedKey;
+    } catch (e) {
+      return 'Error generating BIP32 root key: $e';
+    }
+  }
+
+  bool _isMnemonicValid() {
+    final mnemonic = _mnemonicController.text.trim().toLowerCase();
+    return mnemonic.isNotEmpty && Mnemonic.validate(mnemonic);
   }
 
   @override
@@ -167,6 +204,9 @@ class _ImportWalletScreenState extends State<ImportWalletScreen> {
                           ),
                           maxLines: 6,
                           textCapitalization: TextCapitalization.none,
+                          onChanged: (_) {
+                            setState(() {}); // Update BIP39 seed and BIP32 root key when mnemonic changes
+                          },
                         ),
                       ],
                     ),
@@ -228,11 +268,24 @@ class _ImportWalletScreenState extends State<ImportWalletScreen> {
                                 },
                               ),
                             ),
+                            onChanged: (_) {
+                              setState(() {}); // Update BIP39 seed and BIP32 root key when passphrase changes
+                            },
                           ),
                         ],
                       ],
                     ),
                   ),
+                  
+                  // BIP39 Seed display (only show if mnemonic is valid)
+                  if (_isMnemonicValid()) ...[
+                    const SizedBox(height: AppTheme.space24),
+                    _buildBip39SeedSection(context),
+                    const SizedBox(height: AppTheme.space16),
+                    
+                    // BIP32 Root Key display
+                    _buildBip32RootKeySection(context),
+                  ],
                   
                   if (_error != null) ...[
                     const SizedBox(height: AppTheme.space16),
@@ -284,6 +337,188 @@ class _ImportWalletScreenState extends State<ImportWalletScreen> {
     );
   }
 
+  Widget _buildBip39SeedSection(BuildContext context) {
+    final seed = _getBip39Seed();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return ModernCard(
+      backgroundColor: AppTheme.successContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.key_rounded, color: AppTheme.onSuccessContainer),
+              const SizedBox(width: AppTheme.space8),
+              Expanded(
+                child: Text(
+                  'BIP39 Seed',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.onSuccessContainer,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(_showBip39Seed ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _showBip39Seed = !_showBip39Seed;
+                  });
+                },
+                tooltip: _showBip39Seed ? 'Hide seed' : 'Show seed',
+              ),
+              if (_showBip39Seed)
+                IconButton(
+                  icon: const Icon(Icons.copy_rounded, size: 20),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: seed));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('BIP39 seed copied to clipboard')),
+                    );
+                  },
+                  tooltip: 'Copy seed',
+                ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.space8),
+          Text(
+            'This is the 512-bit seed derived from your mnemonic${_usePassphrase ? " and passphrase" : ""}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.onSuccessContainer,
+            ),
+          ),
+          const SizedBox(height: AppTheme.space12),
+          Container(
+            padding: const EdgeInsets.all(AppTheme.space12),
+            decoration: BoxDecoration(
+              color: _showBip39Seed ? colorScheme.surface : colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(AppTheme.radius8),
+              border: Border.all(
+                color: _showBip39Seed ? colorScheme.outline : colorScheme.outlineVariant,
+              ),
+            ),
+            child: _showBip39Seed
+                ? SelectableText(
+                    seed,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_off_rounded, size: 32, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(height: AppTheme.space8),
+                        Text(
+                          'BIP39 seed hidden',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBip32RootKeySection(BuildContext context) {
+    final rootKey = _getBip32RootKey();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return ModernCard(
+      backgroundColor: AppTheme.primaryGoldSurface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.vpn_key_rounded, color: AppTheme.primaryGold),
+              const SizedBox(width: AppTheme.space8),
+              Expanded(
+                child: Text(
+                  'BIP32 Root Key',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryGold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(_showBip32RootKey ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _showBip32RootKey = !_showBip32RootKey;
+                  });
+                },
+                tooltip: _showBip32RootKey ? 'Hide root key' : 'Show root key',
+              ),
+              if (_showBip32RootKey)
+                IconButton(
+                  icon: const Icon(Icons.copy_rounded, size: 20),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: rootKey));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('BIP32 root key copied to clipboard')),
+                    );
+                  },
+                  tooltip: 'Copy root key',
+                ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.space8),
+          Text(
+            'This is the master private key derived from your mnemonic${_usePassphrase ? " and passphrase" : ""}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.primaryGold,
+            ),
+          ),
+          const SizedBox(height: AppTheme.space12),
+          Container(
+            padding: const EdgeInsets.all(AppTheme.space12),
+            decoration: BoxDecoration(
+              color: _showBip32RootKey ? colorScheme.surface : colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(AppTheme.radius8),
+              border: Border.all(
+                color: _showBip32RootKey ? colorScheme.outline : colorScheme.outlineVariant,
+              ),
+            ),
+            child: _showBip32RootKey
+                ? SelectableText(
+                    rootKey,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_off_rounded, size: 32, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(height: AppTheme.space8),
+                        Text(
+                          'BIP32 root key hidden',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showHelpDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -311,6 +546,25 @@ class _ImportWalletScreenState extends State<ImportWalletScreen> {
               Text('• Only needed if your wallet was created with a passphrase'),
               Text('• This is an additional security layer'),
               Text('• If you forget it, you cannot access your funds'),
+              SizedBox(height: 16),
+              Text(
+                'BIP39 Seed:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text('• Technical representation of your phrase'),
+              Text('• Used internally by the wallet'),
+              Text('• Can be copied for advanced users'),
+              SizedBox(height: 16),
+              Text(
+                'BIP32 Root Key:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text('• Master private key derived from your phrase'),
+              Text('• Used to generate all wallet addresses'),
+              Text('• Most sensitive key - keep extremely secure'),
+              Text('• Required for advanced wallet recovery'),
             ],
           ),
         ),
