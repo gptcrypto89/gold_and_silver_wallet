@@ -118,12 +118,22 @@ if [ "$SKIP_BUILD" = false ]; then
         cd "$SCRIPT_DIR"
     fi
     
-    cd "$SECP256K1_DIR"
+    cd "$SECP256K1_DIR" || {
+        echo "❌ Failed to change to secp256k1 directory: $SECP256K1_DIR"
+        exit 1
+    }
     
     # Generate configure script if needed
     if [ ! -f "configure" ]; then
         echo "🔨 Generating build configuration..."
-        ./autogen.sh
+        if [ ! -f "autogen.sh" ]; then
+            echo "❌ autogen.sh not found in $SECP256K1_DIR"
+            exit 1
+        fi
+        ./autogen.sh || {
+            echo "❌ Failed to generate configure script"
+            exit 1
+        }
     fi
     
     # Common configuration
@@ -233,12 +243,41 @@ if [ "$SKIP_BUILD" = false ]; then
         linux)
             if [ ! -f "$WRAPPER_DIR/linux/libsecp256k1.so" ]; then
                 echo "🐧 Building for Linux..."
-                ./configure $COMMON_FLAGS --prefix="$SCRIPT_DIR/build/linux"
+                cd "$SECP256K1_DIR"
+                
+                # Ensure configure script exists
+                if [ ! -f "configure" ]; then
+                    echo "🔨 Generating configure script..."
+                    ./autogen.sh || {
+                        echo "❌ Failed to generate configure script"
+                        exit 1
+                    }
+                fi
+                
+                # Ensure we're in the right directory and configure exists
+                if [ ! -f "./configure" ]; then
+                    echo "❌ Configure script not found in $SECP256K1_DIR"
+                    exit 1
+                fi
+                
+                ./configure $COMMON_FLAGS --prefix="$SCRIPT_DIR/build/linux" || {
+                    echo "❌ Configure failed"
+                    exit 1
+                }
                 make clean > /dev/null 2>&1
-                make -j$(nproc)
-                make install
+                make -j$(nproc) || {
+                    echo "❌ Build failed"
+                    exit 1
+                }
+                make install || {
+                    echo "❌ Install failed"
+                    exit 1
+                }
                 mkdir -p "$WRAPPER_DIR/linux"
-                cp "$SCRIPT_DIR/build/linux/lib/libsecp256k1.so" "$WRAPPER_DIR/linux/"
+                cp "$SCRIPT_DIR/build/linux/lib/libsecp256k1.so" "$WRAPPER_DIR/linux/" || {
+                    echo "❌ Failed to copy library"
+                    exit 1
+                }
                 echo "✓ Linux library built"
             else
                 echo "✓ Linux library already exists"
