@@ -5,15 +5,15 @@ import 'package:flutter/services.dart';
 /// Following Material Design 3 guidelines with premium Gold/Silver theme
 class AppTheme {
   // Color Palette
-  static const Color goldPrimary = Color(0xFFD4AF37);
-  static const Color goldSecondary = Color(0xFFF4E4BC);
-  static const Color goldTertiary = Color(0xFFB8860B);
-  static const Color goldSurface = Color(0xFFFFF8DC);
+  static const Color goldPrimary = Color(0xFFF08E19);
+  static const Color goldSecondary = Color(0xFFFFF4E6);
+  static const Color goldTertiary = Color(0xFFC06E14);
+  static const Color goldSurface = Color(0xFFFFF4E6);
   
-  static const Color silverPrimary = Color(0xFFC0C0C0);
-  static const Color silverSecondary = Color(0xFFE8E8E8);
-  static const Color silverTertiary = Color(0xFFA8A8A8);
-  static const Color silverSurface = Color(0xFFF5F5F5);
+  static const Color silverPrimary = Color(0xFF6EC7BB);
+  static const Color silverSecondary = Color(0xFFE6F7F4);
+  static const Color silverTertiary = Color(0xFF4FA896);
+  static const Color silverSurface = Color(0xFFE6F7F4);
   
   // Neutral Colors
   static const Color surface = Color(0xFFFFFBFE);
@@ -28,15 +28,15 @@ class AppTheme {
   static const Color outlineVariant = Color(0xFFCAC4D0);
   
   // Elegant Gold & Silver UI Colors
-  static const Color primaryGold = Color(0xFFB8860B); // Dark goldenrod - more sophisticated than bright gold
-  static const Color primaryGoldLight = Color(0xFFD4AF37); // Classic gold
-  static const Color primaryGoldDark = Color(0xFF9A7209); // Darker gold
-  static const Color primaryGoldSurface = Color(0xFFFDF6E3); // Warm gold surface
+  static const Color primaryGold = Color(0xFFF08E19); // Gold orange
+  static const Color primaryGoldLight = Color(0xFFFFA64D); // Lighter gold
+  static const Color primaryGoldDark = Color(0xFFC06E14); // Darker gold
+  static const Color primaryGoldSurface = Color(0xFFFFF4E6); // Warm gold surface
   
-  static const Color secondarySilver = Color(0xFF8E8E93); // Modern silver
-  static const Color secondarySilverLight = Color(0xFFC0C0C0); // Classic silver
-  static const Color secondarySilverDark = Color(0xFF6B6B70); // Darker silver
-  static const Color secondarySilverSurface = Color(0xFFF8F8F8); // Cool silver surface
+  static const Color secondarySilver = Color(0xFF6EC7BB); // Teal silver
+  static const Color secondarySilverLight = Color(0xFF8ED9CC); // Lighter silver
+  static const Color secondarySilverDark = Color(0xFF4FA896); // Darker silver
+  static const Color secondarySilverSurface = Color(0xFFE6F7F4); // Cool silver surface
   
   static const Color accentBronze = Color(0xFFCD7F32); // Bronze accent
   static const Color accentBronzeLight = Color(0xFFE6A85C);
